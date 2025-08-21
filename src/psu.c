@@ -42,7 +42,11 @@ int extractPSU(const char *save)
     numFiles = entry.length - 2;
     
     get_psv_filename(dstName, entry.name);
+#ifdef _WIN32
+    mkdir(dstName);
+#else
     mkdir(dstName, 0755);
+#endif
     strcat(dstName, "/");
 //    psvFile = fopen(dstName, "wb");
     
