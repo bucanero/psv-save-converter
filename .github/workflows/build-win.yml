@@ -8,7 +8,7 @@ on:
 
 jobs:
   msys:
-    runs-on: windows-2019
+    runs-on: windows-2022
     strategy:
       matrix:
         mingw: ["MINGW32", "MINGW64"]
@@ -26,7 +26,7 @@ jobs:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     name: MSYS2 ${{ matrix.mingw }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@latest
       - name: Set up shell
         run: echo ::add-path::C:\msys64\usr\bin\
         shell: pwsh
@@ -51,7 +51,7 @@ jobs:
         run: |
           tar -zcvf build.tar.gz build
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@latest
         with:
           name: build-${{ steps.slug.outputs.sha8 }}-${{matrix.mingw}}
           path: build.tar.gz
