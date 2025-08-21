@@ -48,7 +48,7 @@ jobs:
     
       - name: Compress output
         run: |
-          tar -zcvf build.tar.gz psv-save-converter
+          tar -zcvf build.tar.gz psv-save-converter.exe
 
       - uses: actions/upload-artifact@v4
         with:
