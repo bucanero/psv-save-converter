@@ -1,51 +1,25 @@
-ifeq ($(OS),Windows_NT)
-	TARGET_EXEC ?= psv-converter-win
-else
-    UNAME_S := $(shell uname -s)
-    ifeq ($(UNAME_S),Linux)
-		TARGET_EXEC ?= psv-converter-linux
-	endif
-    ifeq ($(UNAME_S),Darwin)
-		TARGET_EXEC ?= psv-converter-macos
-	endif
-endif
+TOOLS	=	src/main
+#PS1TOOLS=	src/ps1main
+COMMON	=	src/psu.o src/armax.o src/cbs.o src/aes.o src/mcs.o src/lzari.o \
+			src/miniz_tinfl.o src/sha1.o src/xps.o
+DEPS	=	Makefile
 
-BUILD_DIR ?= ./build
-SRC_DIRS ?= ./src ./include
+CC	=	gcc
+CFLAGS	=	-g -O3 -W -I./include -I. -D_GNU_SOURCE
+#LDFLAGS =	-lz
 
-SRCS := $(shell find $(SRC_DIRS) -name *.cpp -or -name *.c -or -name *.s)
-OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
-DEPS := $(OBJS:.o=.d)
+OBJS	= $(COMMON) $(addsuffix .o, $(TOOLS))
 
-INC_DIRS := $(shell find $(SRC_DIRS) -type d)
-INC_FLAGS := $(addprefix -I,$(INC_DIRS))
+all: $(TOOLS) $(PS1TOOLS)
 
-CPPFLAGS ?= $(INC_FLAGS) -s -static -Wall -Wextra -std=c99
+$(TOOLS): %: %.o $(COMMON) $(DEPS)
+	$(CC) $(CFLAGS) -o psv-save-converter $< $(COMMON) $(LDFLAGS)
 
-$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
-	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+#$(PS1TOOLS): %: %.o $(COMMON) $(DEPS)
+#	$(CC) $(CFLAGS) -o ps1vmc-tool $< $(COMMON) $(LDFLAGS)
 
-# assembly
-$(BUILD_DIR)/%.s.o: %.s
-	$(MKDIR_P) $(dir $@)
-	$(AS) $(ASFLAGS) -c $< -o $@
-
-# c source
-$(BUILD_DIR)/%.c.o: %.c
-	$(MKDIR_P) $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
-
-# c++ source
-$(BUILD_DIR)/%.cpp.o: %.cpp
-	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
-
-
-.PHONY: clean
+$(OBJS): %.o: %.c $(DEPS)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	$(RM) -r $(BUILD_DIR)
-
--include $(DEPS)
-
-MKDIR_P ?= mkdir -p
+	-rm -f $(OBJS) $(TOOLS)
