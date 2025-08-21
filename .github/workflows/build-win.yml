@@ -23,12 +23,11 @@ jobs:
     env:
       MSYSTEM: ${{ matrix.mingw }}
       CHERE_INVOKING: 1
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     name: MSYS2 ${{ matrix.mingw }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up shell
-        run: echo ::add-path::C:\msys64\usr\bin\
+        run: echo "C:\msys64\usr\bin\" >> $GITHUB_PATH
         shell: pwsh
       - name: Print system version
         run: |
