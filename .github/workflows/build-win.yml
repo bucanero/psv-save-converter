@@ -41,8 +41,6 @@ jobs:
       - name: Build binaries
         run: |
           make
-          # add .exe extension to binaries
-          mv psv-save-converter psv-save-converter.exe
 
       - name: Get short SHA
         id: slug
