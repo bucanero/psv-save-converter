@@ -8,7 +8,7 @@ on:
 
 jobs:
   msys:
-    runs-on: windows-2019
+    runs-on: windows-2022
     strategy:
       matrix:
         mingw: ["MINGW32", "MINGW64"]
@@ -23,12 +23,11 @@ jobs:
     env:
       MSYSTEM: ${{ matrix.mingw }}
       CHERE_INVOKING: 1
-      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     name: MSYS2 ${{ matrix.mingw }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up shell
-        run: echo ::add-path::C:\msys64\usr\bin\
+        run: echo "C:\msys64\usr\bin\" >> $GITHUB_PATH
         shell: pwsh
       - name: Print system version
         run: |
@@ -49,9 +48,9 @@ jobs:
     
       - name: Compress output
         run: |
-          tar -zcvf build.tar.gz build
+          tar -zcvf build.tar.gz psv-save-converter.exe
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.slug.outputs.sha8 }}-${{matrix.mingw}}
           path: build.tar.gz
