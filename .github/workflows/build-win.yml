@@ -26,7 +26,7 @@ jobs:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     name: MSYS2 ${{ matrix.mingw }}
     steps:
-      - uses: actions/checkout@latest
+      - uses: actions/checkout@v4
       - name: Set up shell
         run: echo ::add-path::C:\msys64\usr\bin\
         shell: pwsh
@@ -51,7 +51,7 @@ jobs:
         run: |
           tar -zcvf build.tar.gz build
 
-      - uses: actions/upload-artifact@latest
+      - uses: actions/upload-artifact@v4
         with:
           name: build-${{ steps.slug.outputs.sha8 }}-${{matrix.mingw}}
           path: build.tar.gz
