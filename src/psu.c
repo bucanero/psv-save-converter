@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include "ps2mc.h"
 
@@ -8,11 +9,11 @@ void psv_resign(const char* src_file);
 
 void get_psv_filename(char* psvName, const char* dirName)
 {
-	const char *ch = &dirName[12];
+//	const char *ch = &dirName[12];
 
 	memcpy(psvName, dirName, 12);
 	psvName[12] = 0;
-	
+	/*
 	while (*ch)
 	{
 		char tmp[3];
@@ -20,6 +21,7 @@ void get_psv_filename(char* psvName, const char* dirName)
 		strcat(psvName, tmp);
 	}
 	strcat(psvName, ".PSV");
+	*/
 }
 
 int extractPSU(const char *save)
@@ -40,13 +42,15 @@ int extractPSU(const char *save)
     numFiles = entry.length - 2;
     
     get_psv_filename(dstName, entry.name);
-    psvFile = fopen(dstName, "wb");
+    mkdir(dstName, 0755);
+    strcat(dstName, "/");
+//    psvFile = fopen(dstName, "wb");
     
-    if(!psvFile)
-    {
-        fclose(psuFile);
-        return 0;
-    }
+//    if(!psvFile)
+//    {
+//        fclose(psuFile);
+//        return 0;
+//    }
 
     psv_header_t ph;
     ps2_header_t ps2h;
@@ -70,7 +74,7 @@ int extractPSU(const char *save)
     memcpy(&ph.magic, "\0VSP", 4);
     memcpy(&ph.salt, "www.bucanero.com.ar", 20);
 
-	fwrite(&ph, sizeof(psv_header_t), 1, psvFile);
+//	fwrite(&ph, sizeof(psv_header_t), 1, psvFile);
 
     // Skip "." and ".."
     fseek(psuFile, sizeof(ps2_McFsEntry)*2, SEEK_CUR);
@@ -146,13 +150,13 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
 	}
 
-	fwrite(&ps2h, sizeof(ps2_header_t), 1, psvFile);
-	fwrite(&ps2md, sizeof(ps2_MainDirInfo_t), 1, psvFile);
-	fwrite(ps2fi, sizeof(ps2_FileInfo_t), numFiles, psvFile);
+//	fwrite(&ps2h, sizeof(ps2_header_t), 1, psvFile);
+//	fwrite(&ps2md, sizeof(ps2_MainDirInfo_t), 1, psvFile);
+//	fwrite(ps2fi, sizeof(ps2_FileInfo_t), numFiles, psvFile);
 
 	free(ps2fi);
 
-    printf(" %8d Total bytes\n", ps2h.displaySize);
+    printf(" %8d Total bytes\n\n", ps2h.displaySize);
 
     // Skip "." and ".."
     fseek(psuFile, sizeof(ps2_McFsEntry)*3, SEEK_SET);
@@ -164,7 +168,14 @@ int extractPSU(const char *save)
         
         data = malloc(entry.length);
         fread(data, 1, entry.length, psuFile);
+        
+        strchr(dstName, '/')[1] = 0;
+        strcat(dstName, entry.name);
+        printf("+ Writing %s...\n", dstName);
+
+        psvFile = fopen(dstName, "wb");
         fwrite(data, 1, entry.length, psvFile);
+        fclose(psvFile);
 
         free(data);
         
@@ -173,10 +184,11 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
     }
 
-    fclose(psvFile);
+//    fclose(psvFile);
     fclose(psuFile);
     
-    psv_resign(dstName);
+//    psv_resign(dstName);
+    printf("\n+ All files exported!\n");
     
     return 1;
 }

@@ -27,18 +27,13 @@
 #define PSV_MAGIC 0x50535600
 
 const uint8_t key[2][0x10] = {
-							{0xFA, 0x72, 0xCE, 0xEF, 0x59, 0xB4, 0xD2, 0x98, 0x9F, 0x11, 0x19, 0x13, 0x28, 0x7F, 0x51, 0xC7}, 
+							{0xFA, 0x72, 0xCE, 0xEF, 0x59, 0xB4, 0xD2, 0x98, 0x9F, 0x11, 0x19, 0x13, 0x28, 0x7F, 0x51, 0xC7},
 							{0xAB, 0x5A, 0xBC, 0x9F, 0xC1, 0xF4, 0x9D, 0xE6, 0xA0, 0x51, 0xDB, 0xAE, 0xFA, 0x51, 0x88, 0x59}
 						};
 const uint8_t iv[0x10] = {0xB3, 0x0F, 0xFE, 0xED, 0xB7, 0xDC, 0x5E, 0xB7, 0x13, 0x3D, 0xA6, 0x0D, 0x1B, 0x6B, 0x2C, 0xDC};
 
 
 int extractPSU(const char *save);
-int extractMAX(const char *save);
-int extractMCS(const char *save);
-int extractPSX(const char *save);
-int extractCBS(const char *save);
-int extractXPS(const char *save);
 
 char* endsWith(const char * a, const char * b)
 {
@@ -54,12 +49,14 @@ char* endsWith(const char * a, const char * b)
 	return (char*) (a - bl);
 }
 
+/*
 void XorWithByte(uint8_t* buf, uint8_t byte, int length)
 {
 	for (int i = 0; i < length; ++i) {
     	buf[i] ^= byte;
 	}
 }
+*/
 
 static void usage(char *argv[])
 {
@@ -76,6 +73,7 @@ static void usage(char *argv[])
 	return;
 }
 
+/*
 void generateHash(uint8_t *input, size_t sz, int type) {
 	struct AES_ctx aes_ctx;
 
@@ -104,7 +102,7 @@ void generateHash(uint8_t *input, size_t sz, int type) {
 		XorWithIv(salt + 0x10, work_buf);
 		
 	} else if(type == 2) {//PS2
-		uint8_t laid_paid[16]  = {	
+		uint8_t laid_paid[16]  = {
 			0x10, 0x70, 0x00, 0x00, 0x02, 0x00, 0x00, 0x01, 0x10, 0x70, 0x00, 0x03, 0xFF, 0x00, 0x00, 0x01 };
 
 		memcpy(salt, salt_seed, 0x14);
@@ -120,7 +118,7 @@ void generateHash(uint8_t *input, size_t sz, int type) {
 	
 	XorWithByte(salt, 0x36, 0x40);
 		
-	SHA1_CTX sha1_ctx_1;	
+	SHA1_CTX sha1_ctx_1;
 	SHA1Init(&sha1_ctx_1);
 	
 	SHA1Update(&sha1_ctx_1, salt, 0x40);
@@ -187,7 +185,7 @@ error:
 	if (fin)
 		fclose(fin);
 	if (fout)
-		fclose(fout);	
+		fclose(fout);
 
 }
 
@@ -370,6 +368,7 @@ int extractPSV(const char* psvfile)
 
 	return 1;
 }
+*/
 
 int main(int argc, char **argv)
 {
@@ -380,26 +379,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (endsWith(argv[1], ".max"))
-		extractMAX(argv[1]);
-
-	else if (endsWith(argv[1], ".psu"))
+	if (endsWith(argv[1], ".psu"))
 		extractPSU(argv[1]);
-
-	else if (endsWith(argv[1], ".mcs"))
-		extractMCS(argv[1]);
-
-	else if (endsWith(argv[1], ".psx"))
-		extractPSX(argv[1]);
-
-	else if (endsWith(argv[1], ".cbs"))
-		extractCBS(argv[1]);
-
-	else if (endsWith(argv[1], ".xps"))
-		extractXPS(argv[1]);
-
-	else if (endsWith(argv[1], ".psv"))
-		extractPSV(argv[1]);
 
 	else
 		usage(argv);

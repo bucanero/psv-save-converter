@@ -1,6 +1,5 @@
 TOOLS	=	src/main
-COMMON	=	src/psu.o src/armax.o src/cbs.o src/aes.o src/mcs.o src/lzari.o \
-			src/miniz_tinfl.o src/sha1.o src/xps.o
+COMMON	=	src/psu.o
 DEPS	=	Makefile
 
 CC	=	gcc
