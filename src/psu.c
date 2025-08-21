@@ -9,19 +9,8 @@ void psv_resign(const char* src_file);
 
 void get_psv_filename(char* psvName, const char* dirName)
 {
-//	const char *ch = &dirName[12];
-
 	memcpy(psvName, dirName, 12);
 	psvName[12] = 0;
-	/*
-	while (*ch)
-	{
-		char tmp[3];
-		snprintf(tmp, sizeof(tmp), "%02X", *ch++);
-		strcat(psvName, tmp);
-	}
-	strcat(psvName, ".PSV");
-	*/
 }
 
 int extractPSU(const char *save)
@@ -48,13 +37,6 @@ int extractPSU(const char *save)
     mkdir(dstName, 0755);
 #endif
     strcat(dstName, "/");
-//    psvFile = fopen(dstName, "wb");
-    
-//    if(!psvFile)
-//    {
-//        fclose(psuFile);
-//        return 0;
-//    }
 
     psv_header_t ph;
     ps2_header_t ps2h;
@@ -77,8 +59,6 @@ int extractPSU(const char *save)
 	ph.saveType = 0x00000002;
     memcpy(&ph.magic, "\0VSP", 4);
     memcpy(&ph.salt, "www.bucanero.com.ar", 20);
-
-//	fwrite(&ph, sizeof(psv_header_t), 1, psvFile);
 
     // Skip "." and ".."
     fseek(psuFile, sizeof(ps2_McFsEntry)*2, SEEK_CUR);
@@ -154,10 +134,6 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
 	}
 
-//	fwrite(&ps2h, sizeof(ps2_header_t), 1, psvFile);
-//	fwrite(&ps2md, sizeof(ps2_MainDirInfo_t), 1, psvFile);
-//	fwrite(ps2fi, sizeof(ps2_FileInfo_t), numFiles, psvFile);
-
 	free(ps2fi);
 
     printf(" %8d Total bytes\n\n", ps2h.displaySize);
@@ -188,10 +164,8 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
     }
 
-//    fclose(psvFile);
     fclose(psuFile);
     
-//    psv_resign(dstName);
     printf("\n+ All files exported!\n");
     
     return 1;
