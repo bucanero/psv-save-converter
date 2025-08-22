@@ -1,6 +1,6 @@
 /*
 *
-*	PSV Save Converter - (c) 2020 by Bucanero - www.bucanero.com.ar
+*	PSU Extractor - (c) 2020 by Bucanero - www.bucanero.com.ar
 *
 * This tool is based on the ps3-psvresigner by @dots_tb (https://github.com/dots-tb/ps3-psvresigner)
 *
@@ -39,7 +39,7 @@ char* endsWith(const char * a, const char * b)
 
 static void usage(char *argv[])
 {
-	printf("This tool converts and resigns PS1/PS2 saves to PS3 .PSV savegame format.\n\n");
+	printf("This tool extracts data files from PS2 .PSU saves.\n\n");
 	printf("USAGE: %s <filename>\n\n", argv[0]);
 	printf("INPUT FORMAT\n");
 	printf(" .psu            PS2 EMS File (uLaunchELF)\n\n");
@@ -48,7 +48,7 @@ static void usage(char *argv[])
 
 int main(int argc, char **argv)
 {
-	printf("\n PSV Save Converter v1.2.1 - (c) 2020 by Bucanero\n\n");
+	printf("\n PSU Extractor v1.2.1 - (c) 2020 by Bucanero\n\n");
 
 	if (argc != 2) {
 		usage(argv);
