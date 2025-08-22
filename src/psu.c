@@ -188,7 +188,7 @@ int extractPSU(const char *save)
         psvFile = fopen(dstName, "wb");
 #endif
         fwrite(data, 1, entry.length, psvFile);
-#ifndef PSU_EXTRACTOR
+#ifdef PSU_EXTRACTOR
         fclose(psvFile);
 #endif
 
@@ -204,8 +204,9 @@ int extractPSU(const char *save)
 #ifndef PSU_EXTRACTOR
     fclose(psvFile);
     psv_resign(dstName);
-#endif
+#else
     printf("\n+ All files exported!\n");
+#endif
     
     return 1;
 }
