@@ -167,7 +167,7 @@ int extractPSU(const char *save)
 
 	free(ps2fi);
 
-    printf(" %8d Total bytes\n\n", ps2h.displaySize);
+    printf(" %8d Total bytes\n", ps2h.displaySize);
 
     // Skip "." and ".."
     fseek(psuFile, sizeof(ps2_McFsEntry)*3, SEEK_SET);
@@ -183,7 +183,7 @@ int extractPSU(const char *save)
 #ifdef PSU_EXTRACTOR
         strchr(dstName, '/')[1] = 0;
         strcat(dstName, entry.name);
-        printf("+ Writing %s...\n", dstName);
+        printf("\n+ Writing %s...", dstName);
 
         psvFile = fopen(dstName, "wb");
 #endif
@@ -205,7 +205,7 @@ int extractPSU(const char *save)
     fclose(psvFile);
     psv_resign(dstName);
 #else
-    printf("\n+ All files exported!\n");
+    printf("\n\n+ All files exported!\n");
 #endif
     
     return 1;
