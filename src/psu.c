@@ -9,11 +9,11 @@ void psv_resign(const char* src_file);
 
 void get_psv_filename(char* psvName, const char* dirName)
 {
-//	const char *ch = &dirName[12];
+	const char *ch = &dirName[12];
 
 	memcpy(psvName, dirName, 12);
 	psvName[12] = 0;
-	/*
+#ifndef PSU_EXTRACTOR
 	while (*ch)
 	{
 		char tmp[3];
@@ -21,7 +21,7 @@ void get_psv_filename(char* psvName, const char* dirName)
 		strcat(psvName, tmp);
 	}
 	strcat(psvName, ".PSV");
-	*/
+#endif
 }
 
 int extractPSU(const char *save)
@@ -42,19 +42,22 @@ int extractPSU(const char *save)
     numFiles = entry.length - 2;
     
     get_psv_filename(dstName, entry.name);
+#ifndef PSU_EXTRACTOR
+    psvFile = fopen(dstName, "wb");
+    
+    if(!psvFile)
+    {
+        fclose(psuFile);
+        return 0;
+    }
+#else
 #ifdef _WIN32
     mkdir(dstName);
 #else
     mkdir(dstName, 0755);
 #endif
     strcat(dstName, "/");
-//    psvFile = fopen(dstName, "wb");
-    
-//    if(!psvFile)
-//    {
-//        fclose(psuFile);
-//        return 0;
-//    }
+#endif
 
     psv_header_t ph;
     ps2_header_t ps2h;
@@ -78,7 +81,9 @@ int extractPSU(const char *save)
     memcpy(&ph.magic, "\0VSP", 4);
     memcpy(&ph.salt, "www.bucanero.com.ar", 20);
 
-//	fwrite(&ph, sizeof(psv_header_t), 1, psvFile);
+#ifndef PSU_EXTRACTOR
+	fwrite(&ph, sizeof(psv_header_t), 1, psvFile);
+#endif
 
     // Skip "." and ".."
     fseek(psuFile, sizeof(ps2_McFsEntry)*2, SEEK_CUR);
@@ -154,9 +159,11 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
 	}
 
-//	fwrite(&ps2h, sizeof(ps2_header_t), 1, psvFile);
-//	fwrite(&ps2md, sizeof(ps2_MainDirInfo_t), 1, psvFile);
-//	fwrite(ps2fi, sizeof(ps2_FileInfo_t), numFiles, psvFile);
+#ifndef PSU_EXTRACTOR
+	fwrite(&ps2h, sizeof(ps2_header_t), 1, psvFile);
+	fwrite(&ps2md, sizeof(ps2_MainDirInfo_t), 1, psvFile);
+	fwrite(ps2fi, sizeof(ps2_FileInfo_t), numFiles, psvFile);
+#endif
 
 	free(ps2fi);
 
@@ -173,13 +180,17 @@ int extractPSU(const char *save)
         data = malloc(entry.length);
         fread(data, 1, entry.length, psuFile);
         
+#ifdef PSU_EXTRACTOR
         strchr(dstName, '/')[1] = 0;
         strcat(dstName, entry.name);
         printf("+ Writing %s...\n", dstName);
 
         psvFile = fopen(dstName, "wb");
+#endif
         fwrite(data, 1, entry.length, psvFile);
+#ifndef PSU_EXTRACTOR
         fclose(psvFile);
+#endif
 
         free(data);
         
@@ -188,10 +199,12 @@ int extractPSU(const char *save)
             fseek(psuFile, next, SEEK_CUR);
     }
 
-//    fclose(psvFile);
     fclose(psuFile);
     
-//    psv_resign(dstName);
+#ifndef PSU_EXTRACTOR
+    fclose(psvFile);
+    psv_resign(dstName);
+#endif
     printf("\n+ All files exported!\n");
     
     return 1;
