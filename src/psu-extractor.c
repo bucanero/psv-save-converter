@@ -16,10 +16,6 @@
 #include <inttypes.h>
 #include <ctype.h>
 
-#include "aes.h"
-#include "sha1.h"
-#include "ps2mc.h"
-
 
 int extractPSU(const char *save);
 
