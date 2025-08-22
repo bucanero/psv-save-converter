@@ -2,7 +2,7 @@
 *
 *	PSU Extractor - (c) 2020 by Bucanero - www.bucanero.com.ar
 *
-* This tool is based on the ps3-psvresigner by @dots_tb (https://github.com/dots-tb/ps3-psvresigner)
+* This tool is based on the psv-save-converter source code
 *
 * PS2 Save format code from:
 *	- https://github.com/PMStanley/PSV-Exporter
