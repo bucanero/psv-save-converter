@@ -75,7 +75,7 @@ const uint8_t cbsKey[256] = {
 void psv_resign(const char* src_file);
 void get_psv_filename(char* psvName, const char* dirName);
 
-int isCBSFile(const char *path)
+static int isCBSFile(const char *path)
 {
     if(!path)
         return 0;
@@ -128,7 +128,7 @@ static void rc4Crypt(unsigned char *buf, size_t bufLen, const unsigned char *per
     }
 }
 
-void cbsCrypt(unsigned char *buf, size_t bufLen)
+static void cbsCrypt(unsigned char *buf, size_t bufLen)
 {
     rc4Crypt(buf, bufLen, cbsKey);
 }
@@ -149,7 +149,10 @@ int extractCBS(const char *save)
     char dstName[256];
 
     if(!isCBSFile(save))
+    {
+        printf("Not a valid CodeBreaker file: %s\n", save);
         return 0;
+    }
 
     cbsFile = fopen(save, "rb");
     if(!cbsFile)
@@ -167,7 +170,11 @@ int extractCBS(const char *save)
     dstFile = fopen(dstName, "wb");
 
     if (!dstFile)
+    {
+        printf("Failed to create PSV file: %s\n", dstName);
+        free(cbsData);
         return 0;
+    }
 
     // Get data for file entries
     compressed = cbsData + sizeof(cbsHeader_t);

@@ -47,6 +47,7 @@ int extractXPS(const char *save)
 
     if (memcmp(&tmp[4], XPS_HEADER_MAGIC, 16) != 0)
     {
+        printf("Not a valid XPS file: %s\n", save);
         fclose(xpsFile);
         return 0;
     }
@@ -71,6 +72,7 @@ int extractXPS(const char *save)
     
     if(!psvFile)
     {
+        printf("Failed to create PSV file: %s\n", dstName);
         fclose(xpsFile);
         return 0;
     }
