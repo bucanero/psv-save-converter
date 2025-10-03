@@ -17,7 +17,6 @@ typedef struct maxHeader
     char    iconSysName[32];
     u32     compressedSize;
     u32     numFiles;
-
     // This is actually the start of the LZARI stream, but we need it to
     // allocate the buffer.
     u32     decompressedSize;
@@ -52,7 +51,7 @@ static int roundUp(int i, int j)
     return (i + j - 1) / j * j;
 }
 
-int isMAXFile(const char *path)
+static int isMAXFile(const char *path)
 {
     if(!path)
         return 0;
@@ -82,11 +81,10 @@ int isMAXFile(const char *path)
            (header.decompressedSize > 0) &&
            (header.numFiles > 0) &&
            strncmp(header.magic, HEADER_MAGIC, sizeof(header.magic)) == 0 &&
-           strlen(header.dirName) > 0 &&
-           strlen(header.iconSysName) > 0;
+           strlen(header.dirName) > 0;
 }
 
-void setMcDateTime(sceMcStDateTime* mc, struct tm *ftm)
+static void setMcDateTime(sceMcStDateTime* mc, struct tm *ftm)
 {
     mc->Resv2 = 0;
     mc->Sec = ftm->tm_sec;
@@ -99,32 +97,33 @@ void setMcDateTime(sceMcStDateTime* mc, struct tm *ftm)
 
 int extractMAX(const char *save)
 {
+    struct stat st;
+    struct tm *ftm;
+    sceMcStDateTime fctime;
+    sceMcStDateTime fmtime;
+    maxHeader_t header;
+    char dirName[sizeof(header.dirName) + 1];
+    char psvName[128];
+    FILE *f, *psv;
+
     if (!isMAXFile(save))
-    	return 0;
-    
-    FILE *f = fopen(save, "rb");
+    {
+        printf("ERROR! Not a valid AR Max save: %s\n", save);
+        return 0;
+    }
+
+    f = fopen(save, "rb");
     if(!f)
         return 0;
 
-	struct stat st;
-	struct tm *ftm;
-	sceMcStDateTime fctime;
-	sceMcStDateTime fmtime;
+    fstat(fileno(f), &st);
+    ftm = gmtime(&st.st_ctime);
+    setMcDateTime(&fctime, ftm);
+    
+    ftm = gmtime(&st.st_mtime);
+    setMcDateTime(&fmtime, ftm);
 
-	fstat(fileno(f), &st);
-
-	ftm = gmtime(&st.st_ctime);
-	setMcDateTime(&fctime, ftm);
-	
-	ftm = gmtime(&st.st_mtime);
-	setMcDateTime(&fmtime, ftm);
-
-
-    maxHeader_t header;
     fread(&header, 1, sizeof(maxHeader_t), f);
-
-    char dirName[sizeof(header.dirName) + 1];
-    char psvName[128];
 
     memcpy(dirName, header.dirName, sizeof(header.dirName));
     dirName[32] = '\0';
@@ -137,33 +136,35 @@ int extractMAX(const char *save)
     u32 ret = fread(compressed, 1, header.compressedSize, f);
     if(ret != header.compressedSize)
     {
-        printf("Compressed size: actual=%d, expected=%d\n", ret, header.compressedSize);
-        free(compressed);
-        return 0;
+        printf("WARNING! Compressed size: actual=%d, expected=%d\n", ret, header.compressedSize);
+        header.compressedSize = ret;
     }
 
     fclose(f);
     u8 *decompressed = malloc(header.decompressedSize);
 
     ret = unlzari(compressed, header.compressedSize, decompressed, header.decompressedSize);
+    free(compressed);
     // As with other save formats, decompressedSize isn't acccurate.
     if(ret == 0)
     {
         printf("Decompression failed.\n");
         free(decompressed);
-        free(compressed);
         return 0;
     }
-
-    free(compressed);
 
     int i;
     u32 offset = 0;
     u32 dataPos = 0;
     maxEntry_t *entry;
-    FILE* psv;
     
     psv = fopen(psvName, "wb");
+    if (!psv)
+    {
+        printf("Failed to create PSV file: %s\n", psvName);
+        free(decompressed);
+        return 0;
+    }
     
     psv_header_t ph;
     ps2_header_t ps2h;

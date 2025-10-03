@@ -373,7 +373,7 @@ int extractPSV(const char* psvfile)
 
 int main(int argc, char **argv)
 {
-	printf("\n PSV Save Converter v1.2.1 - (c) 2020 by Bucanero\n\n");
+	printf("\n PSV Save Converter v1.2.2 - (c) 2020-2025 by Bucanero\n\n");
 
 	if (argc != 2) {
 		usage(argv);

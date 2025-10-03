@@ -21,6 +21,18 @@ void get_psv_filename(char* psvName, const char* dirName)
 		strcat(psvName, tmp);
 	}
 	strcat(psvName, ".PSV");
+
+    struct stat st;
+    if (stat(psvName, &st) == 0)
+    {
+        printf("File %s already exists! Overwrite? (y/n) ", psvName);
+        char c = getchar();
+        if(c != 'y' && c != 'Y')
+        {
+            printf("Aborted by user.\n");
+            exit(0);
+        }
+    }
 #endif
 }
 
@@ -35,7 +47,10 @@ int extractPSU(const char *save)
     
     psuFile = fopen(save, "rb");
     if(!psuFile)
+    {
+        printf("Failed to open PSU file: %s\n", save);
         return 0;
+    }
     
     // Read main directory entry
     fread(&entry, 1, sizeof(ps2_McFsEntry), psuFile);
@@ -47,6 +62,7 @@ int extractPSU(const char *save)
     
     if(!psvFile)
     {
+        printf("Failed to create PSV file: %s\n", dstName);
         fclose(psuFile);
         return 0;
     }
