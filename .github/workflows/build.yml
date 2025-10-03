@@ -38,11 +38,13 @@ jobs:
       id: slug
       run: echo "::set-output name=sha8::$(echo ${GITHUB_SHA} | cut -c1-8)"
     
-    - name: Compress output
-      run: |
-        tar -zcvf build.tar.gz psv-save-converter psu-extractor
+#    - name: Compress output
+#      run: |
+#        tar -zcvf build.tar.gz psv-save-converter psu-extractor
 
     - uses: actions/upload-artifact@v4
       with:
         name: build-${{ steps.slug.outputs.sha8 }}-${{matrix.os}}
-        path: build.tar.gz
+        path: |
+          psv-save-converter
+          psu-extractor
