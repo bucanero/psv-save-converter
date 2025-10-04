@@ -44,7 +44,7 @@ static void usage(char *argv[])
 
 int main(int argc, char **argv)
 {
-	printf("\n PSU Extractor v1.2.1 - (c) 2020 by Bucanero\n\n");
+	printf("\n PSU Extractor v1.2.2 - (c) 2020-2025 by Bucanero\n\n");
 
 	if (argc != 2) {
 		usage(argv);
