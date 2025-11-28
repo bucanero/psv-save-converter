@@ -16,6 +16,7 @@
 #include <inttypes.h>
 #include <ctype.h>
 
+int force_opt = 0;
 
 int extractPSU(const char *save);
 
@@ -36,9 +37,11 @@ char* endsWith(const char * a, const char * b)
 static void usage(char *argv[])
 {
 	printf("This tool extracts data files from PS2 .PSU saves.\n\n");
-	printf("USAGE: %s <filename>\n\n", argv[0]);
+	printf("USAGE: %s <filename> [-f]\n\n", argv[0]);
 	printf("INPUT FORMAT\n");
 	printf(" .psu            PS2 EMS File (uLaunchELF)\n\n");
+	printf("OPTION\n");
+	printf(" -f              Keep full folder name (can fail due to invalid characters)\n\n");
 	return;
 }
 
@@ -46,14 +49,16 @@ int main(int argc, char **argv)
 {
 	printf("\n PSU Extractor v1.2.2 - (c) 2020-2025 by Bucanero\n\n");
 
-	if (argc != 2) {
+	if (argc < 2) {
 		usage(argv);
 		return 1;
 	}
 
+	if (argc == 3 && argv[2][0] == '-' && toupper(argv[2][1]) == 'F')
+		force_opt = 1;
+
 	if (endsWith(argv[1], ".psu"))
 		extractPSU(argv[1]);
-
 	else
 		usage(argv);
 
