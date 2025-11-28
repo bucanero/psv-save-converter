@@ -168,7 +168,7 @@ int extractMAX(const char *save)
     
     psv_header_t ph;
     ps2_header_t ps2h;
-    ps2_IconSys_t *ps2sys;
+    ps2_IconSys_t *ps2sys = NULL;
     ps2_MainDirInfo_t ps2md;
     
     memset(&ph, 0, sizeof(psv_header_t));

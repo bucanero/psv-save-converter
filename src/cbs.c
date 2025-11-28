@@ -142,7 +142,7 @@ int extractCBS(const char *save)
     u8 *decompressed;
     cbsHeader_t *header;
     cbsEntry_t entryHeader;
-    unsigned long decompressedSize;
+    size_t decompressedSize;
     size_t cbsLen;
     int i, numFiles = 0;
     u32 dataPos = 0, offset = 0;

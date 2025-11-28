@@ -13,7 +13,11 @@ void get_psv_filename(char* psvName, const char* dirName)
 
 	memcpy(psvName, dirName, 12);
 	psvName[12] = 0;
-#ifndef PSU_EXTRACTOR
+#ifdef PSU_EXTRACTOR
+	extern int force_opt;
+	if(force_opt)
+		strcat(psvName, ch);
+#else
 	while (*ch)
 	{
 		char tmp[3];
