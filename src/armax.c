@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -46,9 +47,97 @@ static void printMAXHeader(const maxHeader_t *header)
     printf("decompressedSize : %u\n", header->decompressedSize);
 }
 
+/* zlib's CRC-32 (reflected, polynomial 0xEDB88320), computed a bit at a time.
+ * The project links no zlib and this is its only caller, so the table-less
+ * form is worth the few extra cycles for how little code it is. */
+static u32 crc32_update(u32 crc, const u8 *buf, size_t len)
+{
+    size_t i;
+    int j;
+
+    crc = ~crc;
+    for(i = 0; i < len; i++)
+    {
+        crc ^= buf[i];
+        for(j = 0; j < 8; j++)
+        {
+            u32 mask = -(crc & 1);
+            crc = (crc >> 1) ^ (0xEDB88320u & mask);
+        }
+    }
+
+    return ~crc;
+}
+
+/*
+ * A .max carries a CRC-32 of the whole file, computed with its own four header
+ * bytes taken as zero. Nothing else in the container can catch a corrupted
+ * byte: the LZARI stream has no integrity check of its own, so a flipped bit
+ * silently becomes a flipped bit in the save. A stored zero means the writer
+ * left the field alone, which the original Action Replay software does.
+ */
+static int maxChecksumOk(FILE *f, u32 stored)
+{
+    const long at = (long) offsetof(maxHeader_t, crc);
+    u8 buf[4096];
+    u32 crc = 0;
+    long pos = 0;
+    size_t n, i;
+
+    if(stored == 0)
+        return 1;
+
+    if(fseek(f, 0, SEEK_SET) != 0)
+        return 0;
+
+    while((n = fread(buf, 1, sizeof(buf), f)) > 0)
+    {
+        for(i = 0; i < n; i++)
+            if(pos + (long) i >= at && pos + (long) i < at + 4)
+                buf[i] = 0;
+
+        crc = crc32_update(crc, buf, n);
+        pos += (long) n;
+    }
+
+    return crc == stored;
+}
+
 static int roundUp(int i, int j)
 {
     return (i + j - 1) / j * j;
+}
+
+/*
+ * Walk the entry chain and check every header and every file's data lies
+ * inside what unlzari() actually produced.
+ *
+ * unlzari() stops when its input runs out and reports how much it wrote, so a
+ * truncated or corrupt stream still "succeeds" - it just returns a short
+ * buffer. The loops below index the buffer using each entry's declared length
+ * and never look at that figure, so without this check a short decode is
+ * written out as a save whose last file ends in zeros, and a malformed one
+ * reads off the end of the allocation entirely. Refuse both.
+ */
+static int maxEntriesFit(const u8 *buf, u32 len, u32 numFiles)
+{
+    const maxEntry_t *e;
+    u32 offset = 0, i;
+
+    for(i = 0; i < numFiles; i++)
+    {
+        if(offset > len || len - offset < sizeof(maxEntry_t))
+            return 0;
+
+        e = (const maxEntry_t*) &buf[offset];
+        offset += sizeof(maxEntry_t);
+
+        if(e->length > len - offset)
+            return 0;
+
+        offset = roundUp(offset + e->length + 8, 16) - 8;
+    }
+    return 1;
 }
 
 static int isMAXFile(const char *path)
@@ -125,30 +214,71 @@ int extractMAX(const char *save)
 
     fread(&header, 1, sizeof(maxHeader_t), f);
 
+    if(!maxChecksumOk(f, header.crc))
+    {
+        printf("ERROR! Damaged save: the file's CRC does not match the one in "
+               "its header. Refusing to convert %s\n", save);
+        fclose(f);
+        return 0;
+    }
+
     memcpy(dirName, header.dirName, sizeof(header.dirName));
     dirName[32] = '\0';
 	get_psv_filename(psvName, dirName);
 
-    // Get compressed file entries
-    u8 *compressed = malloc(header.compressedSize);
+    // Get compressed file entries. compressedSize cannot be trusted either:
+    // real saves under-report it (BASLUS-20963FF1200.max claims 17529 for a
+    // 17533 byte stream), and handing unlzari only what the header allows
+    // starves the decoder - it stops early, returns a short buffer, and the
+    // last file in the save is silently truncated. Read everything from the
+    // start of the stream to the end of the file instead; the stream carries
+    // its own length in its first word, so the extra bytes are harmless.
+    long streamStart = sizeof(maxHeader_t) - 4;
+    u32 avail;
 
-    fseek(f, sizeof(maxHeader_t) - 4, SEEK_SET); // Seek to beginning of LZARI stream.
-    u32 ret = fread(compressed, 1, header.compressedSize, f);
-    if(ret != header.compressedSize)
+    fseek(f, 0, SEEK_END);
+    avail = (u32)(ftell(f) - streamStart);
+
+    u8 *compressed = malloc(avail);
+    if(!compressed)
     {
-        printf("WARNING! Compressed size: actual=%d, expected=%d\n", ret, header.compressedSize);
-        header.compressedSize = ret;
+        fclose(f);
+        return 0;
+    }
+
+    fseek(f, streamStart, SEEK_SET); // Seek to beginning of LZARI stream.
+    u32 ret = fread(compressed, 1, avail, f);
+    if(ret != avail)
+    {
+        printf("WARNING! Compressed size: actual=%d, expected=%d\n", ret, avail);
+        avail = ret;
     }
 
     fclose(f);
-    u8 *decompressed = malloc(header.decompressedSize);
+    // calloc, not malloc: a short stream leaves the tail untouched, and it
+    // must read as zeros rather than as whatever was on the heap.
+    u8 *decompressed = calloc(1, header.decompressedSize);
+    if(!decompressed)
+    {
+        free(compressed);
+        return 0;
+    }
 
-    ret = unlzari(compressed, header.compressedSize, decompressed, header.decompressedSize);
+    ret = unlzari(compressed, avail, decompressed, header.decompressedSize);
     free(compressed);
     // As with other save formats, decompressedSize isn't acccurate.
     if(ret == 0)
     {
         printf("Decompression failed.\n");
+        free(decompressed);
+        return 0;
+    }
+
+    if(!maxEntriesFit(decompressed, (u32)ret, header.numFiles))
+    {
+        printf("ERROR! Truncated or corrupt save: the %u decompressed bytes do "
+               "not cover the %u files the header declares.\n",
+               (u32)ret, header.numFiles);
         free(decompressed);
         return 0;
     }
@@ -227,22 +357,27 @@ int extractMAX(const char *save)
 		
 		dataPos += entry->length;
 		
-		if (strcmp(ps2fi[i].filename, ps2sys->IconName) == 0)
+		// ps2sys is only set if the save carries an icon.sys; without this
+		// guard a save that has none dereferences NULL here.
+		if (ps2sys)
 		{
-			ps2h.icon1Size = ps2fi[i].filesize;
-			ps2h.icon1Pos = ps2fi[i].positionInFile;
-		}
+			if (strcmp(ps2fi[i].filename, ps2sys->IconName) == 0)
+			{
+				ps2h.icon1Size = ps2fi[i].filesize;
+				ps2h.icon1Pos = ps2fi[i].positionInFile;
+			}
 
-		if (strcmp(ps2fi[i].filename, ps2sys->copyIconName) == 0)
-		{
-			ps2h.icon2Size = ps2fi[i].filesize;
-			ps2h.icon2Pos = ps2fi[i].positionInFile;
-		}
+			if (strcmp(ps2fi[i].filename, ps2sys->copyIconName) == 0)
+			{
+				ps2h.icon2Size = ps2fi[i].filesize;
+				ps2h.icon2Pos = ps2fi[i].positionInFile;
+			}
 
-		if (strcmp(ps2fi[i].filename, ps2sys->deleteIconName) == 0)
-		{
-			ps2h.icon3Size = ps2fi[i].filesize;
-			ps2h.icon3Pos = ps2fi[i].positionInFile;
+			if (strcmp(ps2fi[i].filename, ps2sys->deleteIconName) == 0)
+			{
+				ps2h.icon3Size = ps2fi[i].filesize;
+				ps2h.icon3Pos = ps2fi[i].positionInFile;
+			}
 		}
 
 		if(strcmp(ps2fi[i].filename, "icon.sys") == 0)

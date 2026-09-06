@@ -87,6 +87,9 @@ int extractPSU(const char *save)
     memset(&ph, 0, sizeof(psv_header_t));
     memset(&ps2h, 0, sizeof(ps2_header_t));
     memset(&ps2md, 0, sizeof(ps2_MainDirInfo_t));
+    // Only filled in if the save has an icon.sys; the icon name comparisons
+    // below read it either way.
+    memset(&ps2sys, 0, sizeof(ps2_IconSys_t));
     
     ps2h.numberOfFiles = numFiles;
 
@@ -114,7 +117,17 @@ int extractPSU(const char *save)
         fread(&entry, 1, sizeof(ps2_McFsEntry), psuFile);
 
 		if(strcmp(entry.name, "icon.sys") == 0)
-			fread(&ps2sys, 1, sizeof(ps2_IconSys_t), psuFile);
+		{
+			// icon.sys is not always exactly sizeof(ps2_IconSys_t): reading
+			// that many bytes regardless leaves the stream short on a longer
+			// one (a 976 byte icon.sys leaves 12 bytes unread), which throws
+			// off every entry after it and the displaySize total with them.
+			// Read what fits, then seek past the remainder.
+			u32 want = (entry.length < sizeof(ps2_IconSys_t)) ? entry.length : sizeof(ps2_IconSys_t);
+
+			fread(&ps2sys, 1, want, psuFile);
+			fseek(psuFile, entry.length - want, SEEK_CUR);
+		}
 		else
 			fseek(psuFile, entry.length, SEEK_CUR);
 
