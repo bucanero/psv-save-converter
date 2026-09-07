@@ -20,11 +20,27 @@ int extractMCS(const char* mcsfile)
 		return 0;
 	}
 
+	// ftell() reports failure as -1, which would become a huge size_t and slip
+	// straight past the size check below, so take it as a long first.
 	fseek(pf, 0, SEEK_END);
-	size_t sz = ftell(pf);
+	long len = ftell(pf);
 	fseek(pf, 0, SEEK_SET);
-	
+
+	// The header is 0x80 bytes and the data follows it, so anything smaller
+	// cannot be a save - and the reads below would run off the buffer.
+	if (len <= 0x80) {
+		printf("Not a .mcs file (too small: %ld bytes)\n", len);
+		fclose(pf);
+		return 0;
+	}
+
+	size_t sz = (size_t) len;
+
 	uint8_t *input = (unsigned char*) malloc(sz);
+	if (!input) {
+		fclose(pf);
+		return 0;
+	}
 	fread(input, 1, sz, pf);
 	fclose(pf);
 
@@ -80,11 +96,26 @@ int extractPSX(const char* mcsfile)
 		return 0;
 	}
 
+	// As above: -1 from ftell() must not become a huge size_t.
 	fseek(pf, 0, SEEK_END);
-	size_t sz = ftell(pf);
+	long len = ftell(pf);
 	fseek(pf, 0, SEEK_SET);
-	
+
+	// 'SC' is read at 0x36 and the data runs from there, so a shorter file
+	// would be probed and copied out of bounds.
+	if (len <= 0x38) {
+		printf("Not a .psx file (too small: %ld bytes)\n", len);
+		fclose(pf);
+		return 0;
+	}
+
+	size_t sz = (size_t) len;
+
 	uint8_t *input = (unsigned char*) malloc(sz);
+	if (!input) {
+		fclose(pf);
+		return 0;
+	}
 	fread(input, 1, sz, pf);
 	fclose(pf);
 

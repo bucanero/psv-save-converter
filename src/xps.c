@@ -28,6 +28,61 @@ typedef struct __attribute__((__packed__)) xpsEntry
 void psv_resign(const char* src_file);
 void get_psv_filename(char* psvName, const char* dirName);
 
+/*
+ * The four bytes after the body are a checksum of it. Not every writer appends
+ * them - a file that stops at the last byte of data is accepted - but when
+ * they are there they have to agree, because nothing else in an .xps can catch
+ * a corrupted byte: the container is uncompressed and the entry sizes are all
+ * self-consistent, so a flipped bit inside a file just becomes a flipped bit
+ * on the card. A stored zero means the writer left the field alone.
+ */
+static int xpsChecksumOk(FILE *f, long bodyStart, u32 bodySize)
+{
+    u8 buf[4096];
+    u32 sum = 0, stored;
+    long fileLen, end;
+    size_t left = bodySize, n, i;
+
+    if(fseek(f, 0, SEEK_END) != 0)
+        return 0;
+
+    fileLen = ftell(f);
+    if(fileLen < 0 || bodyStart < 0)
+        return 0;               /* cannot tell where anything is */
+
+    end = bodyStart + (long) bodySize;
+
+    if(end < bodyStart || end > fileLen)
+        return 0;               /* the body overflows, or runs past the file */
+
+    /* Not every writer appends the checksum, so a file that stops at the last
+     * byte of data is accepted. Anything other than exactly four trailing
+     * bytes is not a trailer this format defines, and there is nothing to
+     * check it against - the same call ps2vmc-tool's xps_trailer_ok() makes. */
+    if(fileLen - end != 4)
+        return 1;
+
+    if(fseek(f, bodyStart, SEEK_SET) != 0)
+        return 0;
+
+    while(left > 0)
+    {
+        n = fread(buf, 1, (left < sizeof(buf)) ? left : sizeof(buf), f);
+        if(n == 0)
+            return 0;
+
+        for(i = 0; i < n; i++)
+            sum += (u32) buf[i] << (sum % 24);
+
+        left -= n;
+    }
+
+    if(fread(&stored, 1, sizeof(stored), f) != sizeof(stored))
+        return 0;
+
+    return (stored == 0) || (stored == sum);
+}
+
 int extractXPS(const char *save)
 {
     u32 dataPos = 0;
@@ -36,6 +91,7 @@ int extractXPS(const char *save)
     char dstName[128];
     char tmp[100];
     u32 len;
+    long bodyStart;
     u8 *data;
     xpsEntry_t entry;
     
@@ -52,14 +108,46 @@ int extractXPS(const char *save)
         return 0;
     }
 
-    // Skip the variable size header
-    fread(&len, 1, sizeof(u32), xpsFile);
-    fread(&tmp, 1, len, xpsFile);
-    fread(&len, 1, sizeof(u32), xpsFile);
-    fread(&tmp, 1, len, xpsFile);
-    fread(&len, 1, sizeof(u32), xpsFile);
-    fread(&len, 1, sizeof(u32), xpsFile);
-    
+    // Skip the variable size header: three length-prefixed strings (title,
+    // date and the writing tool's comment), then the size of the rest of the
+    // file. The comment is empty in most saves, which makes its length look
+    // like a spare zero word - but PS2SaveConverter fills it in, and reading
+    // only two strings then skipping 8 bytes lands in the middle of it.
+    // Seek past them instead of reading: these are longer than tmp[].
+    for (i = 0; i < 3; i++)
+    {
+        if (fread(&len, 1, sizeof(u32), xpsFile) != sizeof(u32) ||
+            fseek(xpsFile, len, SEEK_CUR) != 0)
+        {
+            printf("Not a valid XPS file: %s\n", save);
+            fclose(xpsFile);
+            return 0;
+        }
+    }
+    if(fread(&len, 1, sizeof(u32), xpsFile) != sizeof(u32))
+    {
+        printf("Not a valid XPS file: %s\n", save);
+        fclose(xpsFile);
+        return 0;
+    }
+
+    bodyStart = ftell(xpsFile);
+    if(bodyStart < 0)
+    {
+        printf("Not a valid XPS file: %s\n", save);
+        fclose(xpsFile);
+        return 0;
+    }
+
+    if(!xpsChecksumOk(xpsFile, bodyStart, len))
+    {
+        printf("ERROR! Damaged save: the file's checksum does not match its "
+               "contents. Refusing to convert %s\n", save);
+        fclose(xpsFile);
+        return 0;
+    }
+    fseek(xpsFile, bodyStart, SEEK_SET);
+
     // Read main directory entry
     fread(&entry, 1, sizeof(xpsEntry_t), xpsFile);
     numFiles = entry.length - 2;
@@ -85,6 +173,9 @@ int extractXPS(const char *save)
     memset(&ph, 0, sizeof(psv_header_t));
     memset(&ps2h, 0, sizeof(ps2_header_t));
     memset(&ps2md, 0, sizeof(ps2_MainDirInfo_t));
+    // Only filled in if the save has an icon.sys; the icon name comparisons
+    // below read it either way.
+    memset(&ps2sys, 0, sizeof(ps2_IconSys_t));
     
     ps2h.numberOfFiles = numFiles;
 
@@ -107,7 +198,15 @@ int extractXPS(const char *save)
         fread(&entry, 1, sizeof(xpsEntry_t), xpsFile);
 
 		if(strcmp(entry.name, "icon.sys") == 0)
-			fread(&ps2sys, 1, sizeof(ps2_IconSys_t), xpsFile);
+		{
+			// Real saves carry icon.sys files that are not exactly
+			// sizeof(ps2_IconSys_t): read what fits, then seek past the rest
+			// so the stream stays aligned with the entry.
+			u32 want = (entry.length < sizeof(ps2_IconSys_t)) ? entry.length : sizeof(ps2_IconSys_t);
+
+			fread(&ps2sys, 1, want, xpsFile);
+			fseek(xpsFile, entry.length - want, SEEK_CUR);
+		}
 		else
 			fseek(xpsFile, entry.length, SEEK_CUR);
 

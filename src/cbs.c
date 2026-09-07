@@ -195,11 +195,15 @@ int extractCBS(const char *save)
     psv_header_t ph;
     ps2_header_t ps2h;
     ps2_IconSys_t *ps2sys = NULL;
+    // icon.sys is not always sizeof(ps2_IconSys_t). Point ps2sys at a zeroed
+    // copy rather than into the buffer, so a short one cannot be read past.
+    ps2_IconSys_t iconsys;
     ps2_MainDirInfo_t ps2md;
     
     memset(&ph, 0, sizeof(psv_header_t));
     memset(&ps2h, 0, sizeof(ps2_header_t));
     memset(&ps2md, 0, sizeof(ps2_MainDirInfo_t));
+    memset(&iconsys, 0, sizeof(ps2_IconSys_t));
 
     ps2md.attribute = header->mode;
     memcpy(&ps2md.create, &header->created, sizeof(sceMcStDateTime));
@@ -216,7 +220,10 @@ int extractCBS(const char *save)
     printf("Save contents:\n");
 
     // Find the icon.sys (need to know the icons names)
-    while(offset < (decompressedSize - sizeof(cbsEntry_t)))
+    // decompressedSize is unsigned: the original condition wrapped to a huge
+    // value for a save smaller than one entry header, walking off the buffer.
+    while(decompressedSize > sizeof(cbsEntry_t) &&
+          offset < (decompressedSize - sizeof(cbsEntry_t)))
     {
         numFiles++;
 
@@ -229,8 +236,27 @@ int extractCBS(const char *save)
         
         offset += sizeof(cbsEntry_t);
 
+        // Entry lengths come from the file. Without this the loops below index
+        // the buffer by a figure nothing has checked.
+        if(entryHeader.length > decompressedSize - offset)
+        {
+            printf("ERROR! Corrupt save: '%s' claims %u bytes, %u remain.\n",
+                   entryHeader.name, entryHeader.length,
+                   (u32)(decompressedSize - offset));
+            fclose(dstFile);
+            free(cbsData);
+            free(decompressed);
+            return 0;
+        }
+
         if(strcmp(entryHeader.name, "icon.sys") == 0)
-            ps2sys = (ps2_IconSys_t*) &decompressed[offset];
+        {
+            u32 want = (entryHeader.length < sizeof(ps2_IconSys_t))
+                     ? entryHeader.length : sizeof(ps2_IconSys_t);
+
+            memcpy(&iconsys, &decompressed[offset], want);
+            ps2sys = &iconsys;
+        }
 
         ps2h.displaySize += entryHeader.length;
         offset += entryHeader.length;
@@ -244,7 +270,13 @@ int extractCBS(const char *save)
     ps2md.numberOfFilesInDir = (numFiles+2);
 
     if (!ps2sys)
+    {
+        printf("ERROR! Save has no icon.sys.\n");
+        fclose(dstFile);
+        free(cbsData);
+        free(decompressed);
         return 0;
+    }
 
     // Calculate the start offset for the file's data
     dataPos = sizeof(psv_header_t) + sizeof(ps2_header_t) + sizeof(ps2_MainDirInfo_t) + sizeof(ps2_FileInfo_t)*numFiles;
