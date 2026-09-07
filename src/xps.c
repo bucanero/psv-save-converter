@@ -47,13 +47,20 @@ static int xpsChecksumOk(FILE *f, long bodyStart, u32 bodySize)
         return 0;
 
     fileLen = ftell(f);
+    if(fileLen < 0 || bodyStart < 0)
+        return 0;               /* cannot tell where anything is */
+
     end = bodyStart + (long) bodySize;
 
-    if(end > fileLen)
-        return 0;               /* the body runs past the end of the file */
+    if(end < bodyStart || end > fileLen)
+        return 0;               /* the body overflows, or runs past the file */
 
+    /* Not every writer appends the checksum, so a file that stops at the last
+     * byte of data is accepted. Anything other than exactly four trailing
+     * bytes is not a trailer this format defines, and there is nothing to
+     * check it against - the same call ps2vmc-tool's xps_trailer_ok() makes. */
     if(fileLen - end != 4)
-        return 1;               /* no trailer to check */
+        return 1;
 
     if(fseek(f, bodyStart, SEEK_SET) != 0)
         return 0;
@@ -117,9 +124,20 @@ int extractXPS(const char *save)
             return 0;
         }
     }
-    fread(&len, 1, sizeof(u32), xpsFile);
+    if(fread(&len, 1, sizeof(u32), xpsFile) != sizeof(u32))
+    {
+        printf("Not a valid XPS file: %s\n", save);
+        fclose(xpsFile);
+        return 0;
+    }
 
     bodyStart = ftell(xpsFile);
+    if(bodyStart < 0)
+    {
+        printf("Not a valid XPS file: %s\n", save);
+        fclose(xpsFile);
+        return 0;
+    }
 
     if(!xpsChecksumOk(xpsFile, bodyStart, len))
     {

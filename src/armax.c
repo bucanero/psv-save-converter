@@ -103,9 +103,16 @@ static int maxChecksumOk(FILE *f, u32 stored)
     return crc == stored;
 }
 
-static int roundUp(int i, int j)
+/*
+ * Entries are 16-byte aligned, counting from 8 bytes before the buffer: the
+ * next one begins at roundUp(offset + 8, 16) - 8. Kept in u32 the whole way -
+ * the arithmetic used to run through a roundUp(int, int) helper, and
+ * offset + length + 8 can exceed INT_MAX on a large save, where the narrowing
+ * that followed could wrap negative.
+ */
+static u32 nextEntryOffset(u32 offset)
 {
-    return (i + j - 1) / j * j;
+    return offset + (16 - ((offset + 8) % 16)) % 16;
 }
 
 /*
@@ -126,7 +133,10 @@ static int maxEntriesFit(const u8 *buf, u32 len, u32 numFiles)
 
     for(i = 0; i < numFiles; i++)
     {
-        if(offset > len || len - offset < sizeof(maxEntry_t))
+        u32 next;
+
+        /* offset <= len is an invariant of the loop, so len - offset is safe */
+        if(len - offset < sizeof(maxEntry_t))
             return 0;
 
         e = (const maxEntry_t*) &buf[offset];
@@ -135,7 +145,13 @@ static int maxEntriesFit(const u8 *buf, u32 len, u32 numFiles)
         if(e->length > len - offset)
             return 0;
 
-        offset = roundUp(offset + e->length + 8, 16) - 8;
+        offset += e->length;
+
+        /* Padding that runs past the data is only meaningful after the last
+         * entry; clamping keeps offset <= len, and a further entry then fails
+         * the size check at the top. */
+        next = nextEntryOffset(offset);
+        offset = (next > len) ? len : next;
     }
     return 1;
 }
@@ -234,10 +250,22 @@ int extractMAX(const char *save)
     // start of the stream to the end of the file instead; the stream carries
     // its own length in its first word, so the extra bytes are harmless.
     long streamStart = sizeof(maxHeader_t) - 4;
+    long fileLen;
     u32 avail;
 
     fseek(f, 0, SEEK_END);
-    avail = (u32)(ftell(f) - streamStart);
+    fileLen = ftell(f);
+
+    /* isMAXFile() has already rejected anything shorter than the header, but
+     * that was a different open of the file; and ftell() can simply fail. */
+    if(fileLen < streamStart)
+    {
+        printf("ERROR! Cannot read the save's length: %s\n", save);
+        fclose(f);
+        return 0;
+    }
+
+    avail = (u32)(fileLen - streamStart);
 
     u8 *compressed = malloc(avail);
     if(!compressed)
@@ -250,7 +278,7 @@ int extractMAX(const char *save)
     u32 ret = fread(compressed, 1, avail, f);
     if(ret != avail)
     {
-        printf("WARNING! Compressed size: actual=%d, expected=%d\n", ret, avail);
+        printf("WARNING! Compressed size: actual=%u, expected=%u\n", ret, avail);
         avail = ret;
     }
 
@@ -331,7 +359,7 @@ int extractMAX(const char *save)
 		if(strcmp(entry->name, "icon.sys") == 0)
 			ps2sys = (ps2_IconSys_t*) &decompressed[offset];
 
-        offset = roundUp(offset + entry->length + 8, 16) - 8;
+        offset = nextEntryOffset(offset + entry->length);
 		ps2h.displaySize += entry->length;
 
 	    printf(" %8d bytes  : %s\n", entry->length, entry->name);
@@ -386,7 +414,7 @@ int extractMAX(const char *save)
 			ps2h.sysPos = ps2fi[i].positionInFile;
 		}
 
-        offset = roundUp(offset + entry->length + 8, 16) - 8;
+        offset = nextEntryOffset(offset + entry->length);
 	}
 
 	fwrite(&ps2h, sizeof(ps2_header_t), 1, psv);
@@ -405,7 +433,7 @@ int extractMAX(const char *save)
 
         fwrite(&decompressed[offset], 1, entry->length, psv);
  
-        offset = roundUp(offset + entry->length + 8, 16) - 8;
+        offset = nextEntryOffset(offset + entry->length);
     }
 
 	fclose(psv);
